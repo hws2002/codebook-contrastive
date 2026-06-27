@@ -1,0 +1,36 @@
+# Large outputs - use HuggingFace Hub instead
+outputs/checkpoints/
+outputs/entity_embs/
+outputs/codebook/
+outputs/codebook_rq/
+outputs/codebook_opq/
+outputs/codebook_analysis/
+outputs/logs/
+
+# HuggingFace cache
+.cache/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+
+# Large binary files
+*.ckpt
+*.npy
+*.pkl
+*.pt
+*.bin
+*.tar
+*.tar.gz
+
+# Jupyter
+.ipynb_checkpoints/
+
+# wandb
+wandb/
+
+# OS
+.DS_Store
