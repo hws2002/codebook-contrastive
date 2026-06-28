@@ -69,8 +69,13 @@ download_shard() {
 
 download_shard 01 & download_shard 02 & wait
 download_shard 03 & download_shard 04 & wait
-download_shard 05
-wait
+download_shard 05 & wait
+
+# shard05 tar은 내부 폴더명이 09/ → 05/로 rename
+if [ -d "${DATASET}/oven_images/09" ] && [ ! -d "${DATASET}/oven_images/05" ]; then
+    echo "Renaming oven_images/09 → 05 (shard05 internal folder name fix)..."
+    mv ${DATASET}/oven_images/09 ${DATASET}/oven_images/05
+fi
 
 echo ""
 echo "All done!"

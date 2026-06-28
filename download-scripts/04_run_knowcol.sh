@@ -4,7 +4,16 @@
 set -e
 
 WORKSPACE=${WORKSPACE:-/workspace}
-PYTHON=${WORKSPACE}/miniconda3/envs/vqa/bin/python
+# conda 위치 유연하게 처리
+PYTHON=${PYTHON_VQA:-""}
+if [ -z "${PYTHON}" ]; then
+    for p in "${WORKSPACE}/miniconda3/envs/vqa/bin/python" \
+              "/opt/conda/envs/vqa/bin/python" \
+              "/root/miniconda3/envs/vqa/bin/python"; do
+        [ -f "$p" ] && PYTHON="$p" && break
+    done
+fi
+[ -z "${PYTHON}" ] && PYTHON=$(conda run -n vqa which python)
 DATASET=${WORKSPACE}/KnowCoL/dataset
 FILTERED=${DATASET}/filtered
 

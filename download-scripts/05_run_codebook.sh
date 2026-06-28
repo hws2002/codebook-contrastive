@@ -9,8 +9,18 @@
 set -e
 
 WORKSPACE=${WORKSPACE:-/workspace}
-PYTHON_VQA=${WORKSPACE}/miniconda3/envs/vqa/bin/python
-PYTHON_FAISS=${WORKSPACE}/miniconda3/envs/faiss-gpu/bin/python
+# conda 위치 유연하게 처리
+_find_python() {
+    local env=$1
+    for p in "${WORKSPACE}/miniconda3/envs/${env}/bin/python" \
+              "/opt/conda/envs/${env}/bin/python" \
+              "/root/miniconda3/envs/${env}/bin/python"; do
+        [ -f "$p" ] && echo "$p" && return
+    done
+    conda run -n ${env} which python
+}
+PYTHON_VQA=${PYTHON_VQA:-$(_find_python vqa)}
+PYTHON_FAISS=${PYTHON_FAISS:-$(_find_python faiss-gpu)}
 CB=${WORKSPACE}/codebook-contrastive
 DATASET=${WORKSPACE}/KnowCoL/dataset
 EMB_DIR=${CB}/outputs/entity_embs_img
