@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "/data/guozhiqiang/hanyoushuo/multimodal/codebook-contrastive/scripts/build_codebook_rq.py", line 25, in <module>
+    from sklearn.cluster import MiniBatchKMeans
+ModuleNotFoundError: No module named 'sklearn'

@@ -244,6 +244,29 @@ checkpoint: `outputs/checkpoints/cb-opq-per_sample-b256/`
 
 ---
 
+---
+
+### [9] KnowCoL — shard01+03, entity image 포함 (batch=32)
+
+| 하이퍼파라미터 | 값 |
+|---|---|
+| dataset | shard01+03 전체 (train 2M / val 126K full oven_entity_val) |
+| entity image | ✅ all_wikipedia_images (203만 개) |
+| batch_size | 32 |
+| epochs | 10 |
+
+| Metric | Score |
+|--------|-------|
+| Recall@1 | 28.87% |
+| Recall@5 | 58.42% |
+| Recall@10 | 69.03% |
+
+> ⚠️ 기존 dataset_01 대비 낮은 이유: val set이 full oven_entity_val (126K)로 확장됨. shard05 미다운로드로 val 70K 샘플이 black image fallback.
+
+checkpoint: `KnowCoL/checkpoints/knowcol-shard0103-img-b32-10ep/`
+
+---
+
 ## 다음 단계
 
 - [x] KnowCoL 10 epoch (batch=32)

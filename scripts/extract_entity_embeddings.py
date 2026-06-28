@@ -32,6 +32,8 @@ BATCH_SIZE = 128
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output_dir', default='../codebook-contrastive/outputs/entity_embs')
+    parser.add_argument('--kb_path',    default='dataset/knowledge_base')
+    parser.add_argument('--kg_dir',     default='dataset/wikidata_subgraph_v1')
     args = parser.parse_args()
 
     out_dir = Path(args.output_dir)
@@ -50,11 +52,11 @@ def main():
     # Load KG
     print("Loading KG...")
     kg = KG(
-        knowledge_base_path='dataset/knowledge_base',
-        entity_set_path='dataset/wikidata_subgraph_v1/entity.txt',
-        relation_path='dataset/wikidata_subgraph_v1/relation.txt',
-        triplet_h_path='dataset/wikidata_subgraph_v1/triplet_h.jsonl',
-        triplet_t_path='dataset/wikidata_subgraph_v1/triplet_t.jsonl',
+        knowledge_base_path=args.kb_path,
+        entity_set_path=f'{args.kg_dir}/entity.txt',
+        relation_path=f'{args.kg_dir}/relation.txt',
+        triplet_h_path=f'{args.kg_dir}/triplet_h.jsonl',
+        triplet_t_path=f'{args.kg_dir}/triplet_t.jsonl',
     )
     n_ent = kg.n_ent
     print(f"Total entities: {n_ent}")
@@ -111,16 +113,24 @@ def main():
 
     # --- Image embeddings (one by one, some missing) ---
     print("Extracting image embeddings...")
-    img_paths = [kg.ent_info[qid]['img'] if qid in kg.ent_info else '' for qid in entity_ids]
+    # kg.get_ent_image() → knowledge_base/wikipedia_images_full/Q488/Q488.jpg
+    img_paths = [kg._qid2img(qid) for qid in entity_ids]
+
+    n_has_img = sum(1 for p in img_paths if Path(p).exists())
+    print(f"  images found: {n_has_img} / {n_ent}")
 
     with torch.no_grad():
         for i in tqdm(range(n_ent)):
-            img, has_img = _load_image_from_path(img_paths[i])
-            if has_img:
-                img_t = transform(img).unsqueeze(0).to(device)
-                emb = clip_model.encode_image(img_t)
-                emb = emb / emb.norm(dim=-1, keepdim=True)
-                img_embs[i] = emb.float().cpu().numpy()
+            img_path = img_paths[i]
+            if img_path and Path(img_path).exists():
+                try:
+                    img = Image.open(img_path).convert('RGB')
+                    img_t = transform(img).unsqueeze(0).to(device)
+                    emb = clip_model.encode_image(img_t)
+                    emb = emb / emb.norm(dim=-1, keepdim=True)
+                    img_embs[i] = emb.float().cpu().numpy()
+                except Exception:
+                    img_embs[i] = text_embs[i]
             else:
                 # fallback: use text embedding
                 img_embs[i] = text_embs[i]

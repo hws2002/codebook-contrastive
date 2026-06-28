@@ -1,0 +1,6 @@
+{
+  "type": "RQ",
+  "depth": 4,
+  "n_centroids": 256,
+  "n_entities": 32122
+}

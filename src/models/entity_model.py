@@ -32,9 +32,12 @@ class CodebookEntityModel(pl.LightningModule):
         entity_text_embs_path: str = None,
         entity_img_embs_path: str = None,
         entity_id_list_path: str = None,
-        # codebook hard negative
+        # codebook hard negative (text)
         codebook_labels_path: str = None,
         codebook_buckets_path: str = None,
+        # codebook hard negative (image) — optional dual codebook
+        codebook_img_labels_path: str = None,
+        codebook_img_buckets_path: str = None,
         n_hard_negatives: int = 16,
         hn_mode: str = 'per_sample',   # 'per_sample' (B+K pool) or 'shared' (B+B*K pool)
     ):
@@ -52,21 +55,33 @@ class CodebookEntityModel(pl.LightningModule):
         self.temperature = temperature
         self.lr = lr
         self.n_hard_negatives = n_hard_negatives
-        self.hn_mode = hn_mode   # 'per_sample' or 'shared'
+        self.hn_mode = hn_mode
 
-        # Load codebook if provided
+        import pickle
+
+        # Text codebook
         self.use_codebook_hn = (codebook_labels_path is not None and
                                 codebook_buckets_path is not None)
         if self.use_codebook_hn:
-            import pickle
-            self._cluster_labels = np.load(codebook_labels_path)   # (N_ent,)
+            self._cluster_labels = np.load(codebook_labels_path)
             with open(codebook_buckets_path, 'rb') as f:
-                self._cluster_buckets = pickle.load(f)              # {cid: [idx,...]}
-            print(f"[Codebook HN] Loaded {len(self._cluster_buckets)} clusters, "
-                  f"n_hard_negatives={n_hard_negatives}")
+                self._cluster_buckets = pickle.load(f)
+            print(f"[Text Codebook HN] {len(self._cluster_buckets)} clusters, K={n_hard_negatives}")
         else:
             self._cluster_labels  = None
             self._cluster_buckets = None
+
+        # Image codebook (optional dual)
+        self.use_img_codebook_hn = (codebook_img_labels_path is not None and
+                                    codebook_img_buckets_path is not None)
+        if self.use_img_codebook_hn:
+            self._img_cluster_labels = np.load(codebook_img_labels_path)
+            with open(codebook_img_buckets_path, 'rb') as f:
+                self._img_cluster_buckets = pickle.load(f)
+            print(f"[Image Codebook HN] {len(self._img_cluster_buckets)} clusters, K={n_hard_negatives}")
+        else:
+            self._img_cluster_labels  = None
+            self._img_cluster_buckets = None
 
         # Load entity embeddings for hard negative encoding
         if entity_text_embs_path:
@@ -138,40 +153,61 @@ class CodebookEntityModel(pl.LightningModule):
             losses.append(F.cross_entropy(logit_i.unsqueeze(0), label_i.unsqueeze(0)))
         return torch.stack(losses).mean()
 
-    def _sample_hard_negatives(self, entity_idxs: torch.Tensor):
-        """
-        Sample same-cluster hard negatives per sample.
-        Returns (B, K, D).
-        CPU sampling은 loop로, GPU encode는 B*K 전체를 한 번에 처리해서 GPU utilization 확보.
-        False negatives filtered: batch positives excluded from HN pool.
-        """
+    def _sample_from_codebook(self, idxs_np, batch_positives, K,
+                              cluster_labels, cluster_buckets):
+        """한 codebook에서 per-sample HN index 샘플링. (B, K) ndarray 반환."""
         rng = np.random.default_rng()
-        idxs_np = entity_idxs.cpu().numpy()
-        batch_positives = set(idxs_np.tolist())
-        K = self.n_hard_negatives
         B = len(idxs_np)
-
-        # ── Step 1: CPU sampling (loop는 불가피, 하지만 GPU 호출 없음) ──────
         all_hn_idxs = np.empty((B, K), dtype=np.int64)
         for i, eidx in enumerate(idxs_np):
-            cid  = int(self._cluster_labels[eidx])
-            pool = [x for x in self._cluster_buckets[cid]
+            cid  = int(cluster_labels[eidx])
+            pool = [x for x in cluster_buckets[cid]
                     if x != eidx and x not in batch_positives]
             if len(pool) < K:
-                pool = [x for x in range(len(self._cluster_labels))
+                pool = [x for x in range(len(cluster_labels))
                         if x not in batch_positives and x != eidx]
-            k    = min(K, len(pool))
+            k = min(K, len(pool))
             chosen = rng.choice(pool, size=k, replace=False)
             if k < K:
                 chosen = np.concatenate([chosen, rng.choice(chosen, size=K - k, replace=True)])
             all_hn_idxs[i] = chosen
+        return all_hn_idxs
 
-        # ── Step 2: GPU encode — B*K 전체를 단일 forward pass로 ─────────────
-        flat = all_hn_idxs.flatten()                           # (B*K,)
-        te = self._all_text_embs[flat].to(self.device)         # (B*K, 1536)
-        ie = self._all_img_embs[flat].to(self.device)          # (B*K, 1536)
-        z_flat = self.encode_entity(te, ie)                    # (B*K, D)
-        return z_flat.view(B, K, -1)                           # (B, K, D)
+    def _sample_hard_negatives(self, entity_idxs: torch.Tensor):
+        """
+        Dual codebook HN sampling.
+        - text codebook만 있으면: K개 text HN
+        - text + image 둘 다 있으면: K//2 text HN + K//2 image HN (합집합, 중복 제거)
+        Returns (B, K_total, D).
+        """
+        idxs_np = entity_idxs.cpu().numpy()
+        batch_positives = set(idxs_np.tolist())
+        K = self.n_hard_negatives
+
+        hn_sets = []  # list of (B, k) ndarray
+
+        if self.use_codebook_hn:
+            K_text = K // 2 if self.use_img_codebook_hn else K
+            hn_sets.append(self._sample_from_codebook(
+                idxs_np, batch_positives, K_text,
+                self._cluster_labels, self._cluster_buckets))
+
+        if self.use_img_codebook_hn:
+            K_img = K - (K // 2)  # 나머지
+            hn_sets.append(self._sample_from_codebook(
+                idxs_np, batch_positives, K_img,
+                self._img_cluster_labels, self._img_cluster_buckets))
+
+        # 합치기 (B, K_total)
+        all_hn_idxs = np.concatenate(hn_sets, axis=1)  # (B, K_text+K_img)
+
+        # GPU encode
+        flat = all_hn_idxs.flatten()
+        te = self._all_text_embs[flat].to(self.device)
+        ie = self._all_img_embs[flat].to(self.device)
+        z_flat = self.encode_entity(te, ie)
+        B, K_total = all_hn_idxs.shape
+        return z_flat.view(B, K_total, -1)  # (B, K_total, D)
 
     def training_step(self, batch, batch_idx):
         z_q = self.encode_query(batch['image'], batch['question_tok'])

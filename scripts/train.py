@@ -90,8 +90,11 @@ class TrainingStatsCallback(Callback):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--emb_dir',    default='../codebook-contrastive/outputs/entity_embs')
-    parser.add_argument('--data_dir',   default='dataset_01')
+    parser.add_argument('--emb_dir',     default='../codebook-contrastive/outputs/entity_embs')
+    parser.add_argument('--data_dir',    default='dataset_01')
+    parser.add_argument('--train_jsonl', default='oven_entity_train.jsonl')
+    parser.add_argument('--val_jsonl',   default='oven_entity_val.jsonl')
+    parser.add_argument('--test_jsonl',  default='oven_entity_test.jsonl')
     parser.add_argument('--max_epochs', type=int,   default=10)
     parser.add_argument('--batch_size', type=int,   default=32)
     parser.add_argument('--lr',         type=float, default=1e-4)
@@ -104,16 +107,16 @@ def main():
     parser.add_argument('--offline',       action='store_true')
     parser.add_argument('--resume_from',   default=None)
     # codebook hard negative
-    parser.add_argument('--codebook_dir',  default=None,
-                        help='dir with codebook files (kmeans or rq)')
-    parser.add_argument('--codebook_type', default='kmeans',
-                        choices=['kmeans', 'rq'],
-                        help='kmeans: entity_cluster_labels.npy + cluster_buckets.pkl  '
-                             'rq: entity_codes_rq.npy + prefix_buckets_rq.pkl (prefix_1 used)')
-    parser.add_argument('--n_hard_neg',    type=int, default=16)
-    parser.add_argument('--hn_mode',       default='per_sample',
-                        choices=['per_sample', 'shared'],
-                        help='per_sample: pool=B+K per query  shared: pool=B+B*K (all HN concatenated)')
+    parser.add_argument('--codebook_dir',      default=None,
+                        help='text codebook dir (kmeans or rq)')
+    parser.add_argument('--codebook_img_dir',  default=None,
+                        help='image codebook dir (optional, for dual codebook HN)')
+    parser.add_argument('--codebook_type',     default='kmeans',
+                        choices=['kmeans', 'rq'])
+    parser.add_argument('--n_hard_neg',        type=int, default=16,
+                        help='total HN per sample (split evenly if dual codebook)')
+    parser.add_argument('--hn_mode',           default='per_sample',
+                        choices=['per_sample', 'shared'])
     args = parser.parse_args()
 
     # ── Load pre-computed entity embeddings ──────────────────────────────
@@ -138,7 +141,7 @@ def main():
 
     train_ds = OvenEntityDataset(
         data_dir=str(data_dir),
-        jsonl_files=['oven_entity_train.jsonl'],
+        jsonl_files=[args.train_jsonl],
         entity_text_embs=entity_text_embs,
         entity_img_embs=entity_img_embs,
         entity_id2idx=entity_id2idx,
@@ -148,7 +151,7 @@ def main():
     )
     val_ds = OvenEntityDataset(
         data_dir=str(data_dir),
-        jsonl_files=['oven_entity_val.jsonl'],
+        jsonl_files=[args.val_jsonl],
         entity_text_embs=entity_text_embs,
         entity_img_embs=entity_img_embs,
         entity_id2idx=entity_id2idx,
@@ -158,7 +161,7 @@ def main():
     )
     test_ds = OvenEntityDataset(
         data_dir=str(data_dir),
-        jsonl_files=['oven_entity_test.jsonl'],
+        jsonl_files=[args.test_jsonl],
         entity_text_embs=entity_text_embs,
         entity_img_embs=entity_img_embs,
         entity_id2idx=entity_id2idx,
@@ -210,6 +213,30 @@ def main():
             codebook_labels_path  = str(codebook_dir / 'entity_cluster_labels.npy')
             codebook_buckets_path = str(codebook_dir / 'cluster_buckets.pkl')
 
+    # image codebook (optional dual)
+    codebook_img_labels_path  = None
+    codebook_img_buckets_path = None
+    if args.codebook_img_dir:
+        codebook_img_dir = Path(args.codebook_img_dir)
+        if args.codebook_type == 'rq':
+            import pickle as _pkl, numpy as _np2
+            codes = _np2.load(codebook_img_dir / 'entity_codes_rq.npy')
+            rq_labels_img = codes[:, 0].astype(_np2.int64)
+            with open(codebook_img_dir / 'prefix_buckets_rq.pkl', 'rb') as _f:
+                prefix_bkts_img = _pkl.load(_f)
+            rq_buckets_img = {k[0]: v for k, v in prefix_bkts_img['prefix_1'].items()}
+            _tmp_img = codebook_img_dir / '_tmp_rq_compat'
+            _tmp_img.mkdir(exist_ok=True)
+            _np2.save(_tmp_img / 'entity_cluster_labels.npy', rq_labels_img)
+            with open(_tmp_img / 'cluster_buckets.pkl', 'wb') as _f:
+                _pkl.dump(rq_buckets_img, _f)
+            codebook_img_labels_path  = str(_tmp_img / 'entity_cluster_labels.npy')
+            codebook_img_buckets_path = str(_tmp_img / 'cluster_buckets.pkl')
+            print(f"[Image RQ] {len(rq_buckets_img)} buckets from {codebook_img_dir}")
+        else:
+            codebook_img_labels_path  = str(codebook_img_dir / 'entity_cluster_labels.npy')
+            codebook_img_buckets_path = str(codebook_img_dir / 'cluster_buckets.pkl')
+
     model = CodebookEntityModel(
         clip_model_name='ViT-L-14',
         clip_pretrained='commonpool_xl_s13b_b90k',
@@ -223,6 +250,8 @@ def main():
         entity_id_list_path=str(emb_dir / 'entity_id_list.json'),
         codebook_labels_path=codebook_labels_path,
         codebook_buckets_path=codebook_buckets_path,
+        codebook_img_labels_path=codebook_img_labels_path,
+        codebook_img_buckets_path=codebook_img_buckets_path,
         n_hard_negatives=args.n_hard_neg,
         hn_mode=args.hn_mode,
     )
