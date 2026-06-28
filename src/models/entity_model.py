@@ -159,33 +159,30 @@ class CodebookEntityModel(pl.LightningModule):
             losses.append(F.cross_entropy(logit_i.unsqueeze(0), label_i.unsqueeze(0)))
         return torch.stack(losses).mean()
 
-    def _build_hn_table(self, K: int) -> np.ndarray:
-        """전체 entity에 대해 HN 인덱스 테이블 (N, K) 1회 생성."""
-        rng = np.random.default_rng(42)
+    def _build_hn_table(self, K: int):
+        """
+        실제 codebook HN만 테이블로 저장 (self 제외, random fallback 미포함).
+        각 entity별로 bucket 내 HN 인덱스 리스트를 리스트로 저장.
+        Returns: list of np.ndarray (길이 N, 각 원소는 가변 길이 HN 인덱스)
+        """
         N = len(self._cluster_labels) if self.use_codebook_hn else len(self._img_cluster_labels)
         K_text = K // 2 if (self.use_codebook_hn and self.use_img_codebook_hn) else K
         K_img  = K - K_text if self.use_img_codebook_hn else 0
-        table  = np.empty((N, K), dtype=np.int64)
 
+        table = []
         for eidx in range(N):
             cols = []
             if self.use_codebook_hn:
                 cid  = (int(self._cluster_labels[eidx]),)
-                pool = [x for x in self._cluster_buckets.get(cid, []) if x != eidx]
-                if len(pool) < K_text:
-                    pool = [x for x in range(N) if x != eidx]
-                chosen = rng.choice(pool, size=K_text, replace=len(pool) < K_text)
-                cols.append(chosen)
+                pool = np.array([x for x in self._cluster_buckets.get(cid, []) if x != eidx])
+                cols.append((pool, K_text))
             if self.use_img_codebook_hn:
                 cid  = (int(self._img_cluster_labels[eidx]),)
-                pool = [x for x in self._img_cluster_buckets.get(cid, []) if x != eidx]
-                if len(pool) < K_img:
-                    pool = [x for x in range(N) if x != eidx]
-                chosen = rng.choice(pool, size=K_img, replace=len(pool) < K_img)
-                cols.append(chosen)
-            table[eidx] = np.concatenate(cols)
+                pool = np.array([x for x in self._img_cluster_buckets.get(cid, []) if x != eidx])
+                cols.append((pool, K_img))
+            table.append(cols)
 
-        return table  # (N, K)
+        return table  # list[list[(pool_array, K_needed)]]
 
     def _sample_from_codebook(self, idxs_np, batch_positives, K,
                               cluster_labels, cluster_buckets):
@@ -209,19 +206,40 @@ class CodebookEntityModel(pl.LightningModule):
 
     def _sample_hard_negatives(self, entity_idxs: torch.Tensor):
         """
-        Pre-computed HN table에서 인덱싱 → Python loop 없음.
-        Returns (B, K, D).
+        HN table에서 codebook HN 샘플링 + 부족분은 매 step random으로 채움.
+        Returns (B, K_total, D).
         """
+        rng = np.random.default_rng()
         idxs_np = entity_idxs.cpu().numpy()
-        # 테이블 인덱싱 (B, K)
-        all_hn_idxs = self._hn_table[idxs_np]  # numpy fancy indexing, 매우 빠름
+        batch_positives = set(idxs_np.tolist())
+        K = self.n_hard_negatives
+        N = len(self._hn_table)
+        B = len(idxs_np)
+
+        all_hn_idxs = np.empty((B, K), dtype=np.int64)
+        for i, eidx in enumerate(idxs_np):
+            chosen = []
+            for pool, K_need in self._hn_table[eidx]:
+                # batch positives 제외
+                valid = pool[~np.isin(pool, list(batch_positives))]
+                k = min(K_need, len(valid))
+                if k > 0:
+                    chosen.append(rng.choice(valid, size=k, replace=False))
+                    remaining = K_need - k
+                else:
+                    remaining = K_need
+                # 부족분은 매 step random
+                if remaining > 0:
+                    rand_pool = np.array([x for x in range(N)
+                                          if x != eidx and x not in batch_positives])
+                    chosen.append(rng.choice(rand_pool, size=remaining, replace=False))
+            all_hn_idxs[i] = np.concatenate(chosen)[:K]
 
         flat = all_hn_idxs.flatten()
         te = self._all_text_embs[flat].to(self.device)
         ie = self._all_img_embs[flat].to(self.device)
         z_flat = self.encode_entity(te, ie)
-        B, K = all_hn_idxs.shape
-        return z_flat.view(B, K, -1)  # (B, K, D)
+        return z_flat.view(B, K, -1)
 
     def training_step(self, batch, batch_idx):
         z_q = self.encode_query(batch['image'], batch['question_tok'])

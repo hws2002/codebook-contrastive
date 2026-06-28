@@ -18,6 +18,7 @@ import argparse
 import json
 import numpy as np
 import torch
+torch.set_float32_matmul_precision('medium')
 import open_clip
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor, Callback

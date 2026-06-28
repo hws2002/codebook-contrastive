@@ -85,10 +85,18 @@ ${PYTHON_VQA} ${CB}/scripts/prepare_image_filtered_dataset.py \
     --dataset_dir ${DATASET} \
     --output_dir ${FILTERED}
 
+# symlink to oven_data/ (OvenEntityDataset reads from data_dir/oven_data/)
+mkdir -p ${DATASET}/oven_data
+ln -sf ${FILTERED}/oven_entity_train_img.jsonl ${DATASET}/oven_data/oven_entity_train_img.jsonl 2>/dev/null || true
+ln -sf ${FILTERED}/oven_entity_val_img.jsonl   ${DATASET}/oven_data/oven_entity_val_img.jsonl   2>/dev/null || true
+ln -sf ${FILTERED}/oven_query_train_img.jsonl  ${DATASET}/oven_data/oven_query_train_img.jsonl  2>/dev/null || true
+ln -sf ${FILTERED}/oven_query_val_img.jsonl    ${DATASET}/oven_data/oven_query_val_img.jsonl    2>/dev/null || true
+
 # Phase 4: 학습 (4x GPU DDP)
 echo "[Phase 4] Training codebook-contrastive (${N_GPUS} GPUs, batch=${BATCH}/GPU)..."
+cd ${CB}
 CUDA_VISIBLE_DEVICES=${GPUS} WANDB_DISABLED=true \
-${PYTHON_VQA} ${CB}/scripts/train.py \
+${PYTHON_VQA} scripts/train.py \
     --data_dir ${DATASET} \
     --train_jsonl oven_entity_train_img.jsonl \
     --val_jsonl oven_entity_val_img.jsonl \
