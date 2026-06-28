@@ -83,6 +83,12 @@ class CodebookEntityModel(pl.LightningModule):
             self._img_cluster_labels  = None
             self._img_cluster_buckets = None
 
+        # Pre-compute HN index table (N_ent, K) — fixed, built once
+        self._hn_table = None
+        if self.use_codebook_hn or self.use_img_codebook_hn:
+            self._hn_table = self._build_hn_table(n_hard_negatives)
+            print(f"[HN Table] Pre-computed: shape={self._hn_table.shape}")
+
         # Load entity embeddings for hard negative encoding
         if entity_text_embs_path:
             self._all_text_embs = torch.from_numpy(
@@ -153,6 +159,34 @@ class CodebookEntityModel(pl.LightningModule):
             losses.append(F.cross_entropy(logit_i.unsqueeze(0), label_i.unsqueeze(0)))
         return torch.stack(losses).mean()
 
+    def _build_hn_table(self, K: int) -> np.ndarray:
+        """전체 entity에 대해 HN 인덱스 테이블 (N, K) 1회 생성."""
+        rng = np.random.default_rng(42)
+        N = len(self._cluster_labels) if self.use_codebook_hn else len(self._img_cluster_labels)
+        K_text = K // 2 if (self.use_codebook_hn and self.use_img_codebook_hn) else K
+        K_img  = K - K_text if self.use_img_codebook_hn else 0
+        table  = np.empty((N, K), dtype=np.int64)
+
+        for eidx in range(N):
+            cols = []
+            if self.use_codebook_hn:
+                cid  = (int(self._cluster_labels[eidx]),)
+                pool = [x for x in self._cluster_buckets.get(cid, []) if x != eidx]
+                if len(pool) < K_text:
+                    pool = [x for x in range(N) if x != eidx]
+                chosen = rng.choice(pool, size=K_text, replace=len(pool) < K_text)
+                cols.append(chosen)
+            if self.use_img_codebook_hn:
+                cid  = (int(self._img_cluster_labels[eidx]),)
+                pool = [x for x in self._img_cluster_buckets.get(cid, []) if x != eidx]
+                if len(pool) < K_img:
+                    pool = [x for x in range(N) if x != eidx]
+                chosen = rng.choice(pool, size=K_img, replace=len(pool) < K_img)
+                cols.append(chosen)
+            table[eidx] = np.concatenate(cols)
+
+        return table  # (N, K)
+
     def _sample_from_codebook(self, idxs_np, batch_positives, K,
                               cluster_labels, cluster_buckets):
         """한 codebook에서 per-sample HN index 샘플링. (B, K) ndarray 반환."""
@@ -175,39 +209,19 @@ class CodebookEntityModel(pl.LightningModule):
 
     def _sample_hard_negatives(self, entity_idxs: torch.Tensor):
         """
-        Dual codebook HN sampling.
-        - text codebook만 있으면: K개 text HN
-        - text + image 둘 다 있으면: K//2 text HN + K//2 image HN (합집합, 중복 제거)
-        Returns (B, K_total, D).
+        Pre-computed HN table에서 인덱싱 → Python loop 없음.
+        Returns (B, K, D).
         """
         idxs_np = entity_idxs.cpu().numpy()
-        batch_positives = set(idxs_np.tolist())
-        K = self.n_hard_negatives
+        # 테이블 인덱싱 (B, K)
+        all_hn_idxs = self._hn_table[idxs_np]  # numpy fancy indexing, 매우 빠름
 
-        hn_sets = []  # list of (B, k) ndarray
-
-        if self.use_codebook_hn:
-            K_text = K // 2 if self.use_img_codebook_hn else K
-            hn_sets.append(self._sample_from_codebook(
-                idxs_np, batch_positives, K_text,
-                self._cluster_labels, self._cluster_buckets))
-
-        if self.use_img_codebook_hn:
-            K_img = K - (K // 2)  # 나머지
-            hn_sets.append(self._sample_from_codebook(
-                idxs_np, batch_positives, K_img,
-                self._img_cluster_labels, self._img_cluster_buckets))
-
-        # 합치기 (B, K_total)
-        all_hn_idxs = np.concatenate(hn_sets, axis=1)  # (B, K_text+K_img)
-
-        # GPU encode
         flat = all_hn_idxs.flatten()
         te = self._all_text_embs[flat].to(self.device)
         ie = self._all_img_embs[flat].to(self.device)
         z_flat = self.encode_entity(te, ie)
-        B, K_total = all_hn_idxs.shape
-        return z_flat.view(B, K_total, -1)  # (B, K_total, D)
+        B, K = all_hn_idxs.shape
+        return z_flat.view(B, K, -1)  # (B, K, D)
 
     def training_step(self, batch, batch_idx):
         z_q = self.encode_query(batch['image'], batch['question_tok'])
