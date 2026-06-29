@@ -9,7 +9,7 @@
 
 set -e
 
-WORKSPACE=${WORKSPACE:-/workspace}
+export WORKSPACE=${WORKSPACE:-/workspace}
 _find_python() {
     local env=$1
     for p in "/venv/${env}/bin/python" \
@@ -20,24 +20,24 @@ _find_python() {
     done
     conda run -n ${env} which python
 }
-PYTHON_VQA=${PYTHON_VQA:-$(_find_python vqa)}
-PYTHON_FAISS=${PYTHON_FAISS:-$(_find_python faiss-gpu)}
-CB=${WORKSPACE}/codebook-contrastive
-DATASET=${WORKSPACE}/KnowCoL/dataset
-EMB_DIR=${CB}/outputs/entity_embs_img
-RQ_TEXT=${CB}/outputs/codebook_rq_text       # KMeans (warm-start용)
-RQ_IMG=${CB}/outputs/codebook_rq_img         # KMeans (warm-start용)
-RQVAE_TEXT=${CB}/outputs/rqvae_text          # RQ-VAE 학습 결과
-RQVAE_IMG=${CB}/outputs/rqvae_img            # RQ-VAE 학습 결과
-FILTERED=${DATASET}/filtered
+export PYTHON_VQA=${PYTHON_VQA:-$(_find_python vqa)}
+export PYTHON_FAISS=${PYTHON_FAISS:-$(_find_python faiss-gpu)}
+export CB=${WORKSPACE}/codebook-contrastive
+export DATASET=${WORKSPACE}/KnowCoL/dataset
+export EMB_DIR=${CB}/outputs/entity_embs_img
+export RQ_TEXT=${CB}/outputs/codebook_rq_text
+export RQ_IMG=${CB}/outputs/codebook_rq_img
+export RQVAE_TEXT=${CB}/outputs/rqvae_text
+export RQVAE_IMG=${CB}/outputs/rqvae_img
+export FILTERED=${DATASET}/filtered
 
-GPUS=${GPUS:-"0,1,2,3"}
-N_GPUS=$(echo ${GPUS} | tr ',' '\n' | wc -l)
-BATCH=${BATCH:-256}
-EPOCHS=${EPOCHS:-10}
-RQVAE_EPOCHS=${RQVAE_EPOCHS:-100}
-N_HN=${N_HN:-256}
-RUN_NAME="cb-rqvae-dual-hn-b${BATCH}x${N_GPUS}-nhn${N_HN}-${EPOCHS}ep"
+export GPUS=${GPUS:-"0,1,2,3"}
+export N_GPUS=$(echo ${GPUS} | tr ',' '\n' | wc -l)
+export BATCH=${BATCH:-256}
+export EPOCHS=${EPOCHS:-10}
+export RQVAE_EPOCHS=${RQVAE_EPOCHS:-20000}
+export N_HN=${N_HN:-256}
+export RUN_NAME="cb-rqvae-dual-hn-b${BATCH}x${N_GPUS}-nhn${N_HN}-${EPOCHS}ep"
 PHASE0_GPU=$(echo ${GPUS} | cut -d',' -f1)
 
 cd ${WORKSPACE}/KnowCoL

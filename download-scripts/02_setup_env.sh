@@ -5,7 +5,7 @@
 
 set -e
 
-WORKSPACE=${WORKSPACE:-/workspace}
+export WORKSPACE=${WORKSPACE:-/workspace}
 
 echo "[1/2] Creating vqa env from KnowCoL/environment.yaml..."
 conda env create -f ${WORKSPACE}/KnowCoL/environment.yaml -n vqa

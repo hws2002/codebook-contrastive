@@ -6,10 +6,9 @@
 
 set -e
 
-WORKSPACE=${WORKSPACE:-/workspace}
-DATASET=${WORKSPACE}/KnowCoL/dataset
-HF_TOKEN=${HF_TOKEN}  # export HF_TOKEN="your_token" 먼저 실행
-
+export WORKSPACE=${WORKSPACE:-/workspace}
+export DATASET=${WORKSPACE}/KnowCoL/dataset
+export HF_TOKEN=${HF_TOKEN}
 export HF_HUB_TOKEN=${HF_TOKEN}
 
 mkdir -p ${DATASET}/oven_data ${DATASET}/oven_images ${DATASET}/test_data

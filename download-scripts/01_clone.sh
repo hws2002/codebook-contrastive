@@ -3,7 +3,7 @@
 
 set -e
 
-WORKSPACE=${WORKSPACE:-/workspace}
+export WORKSPACE=${WORKSPACE:-/workspace}
 
 echo "[1/3] Cloning codebook-contrastive..."
 git clone https://github.com/hws2002/codebook-contrastive.git ${WORKSPACE}/codebook-contrastive

@@ -3,26 +3,26 @@
 
 set -e
 
-WORKSPACE=${WORKSPACE:-/workspace}
-# conda 위치 유연하게 처리
-PYTHON=${PYTHON_VQA:-""}
-if [ -z "${PYTHON}" ]; then
-    for p in "/venv/vqa/bin/python" \
-              "${WORKSPACE}/miniconda3/envs/vqa/bin/python" \
-              "/opt/conda/envs/vqa/bin/python" \
-              "/root/miniconda3/envs/vqa/bin/python"; do
-        [ -f "$p" ] && PYTHON="$p" && break
+export WORKSPACE=${WORKSPACE:-/workspace}
+_find_python() {
+    local env=$1
+    for p in "/venv/${env}/bin/python" \
+              "${WORKSPACE}/miniconda3/envs/${env}/bin/python" \
+              "/opt/conda/envs/${env}/bin/python" \
+              "/root/miniconda3/envs/${env}/bin/python"; do
+        [ -f "$p" ] && echo "$p" && return
     done
-fi
-[ -z "${PYTHON}" ] && PYTHON=$(conda run -n vqa which python)
-DATASET=${WORKSPACE}/KnowCoL/dataset
-FILTERED=${DATASET}/filtered
+    conda run -n ${env} which python
+}
+export PYTHON=${PYTHON_VQA:-$(_find_python vqa)}
+export DATASET=${WORKSPACE}/KnowCoL/dataset
+export FILTERED=${DATASET}/filtered
 
-GPUS=${GPUS:-"0,1,2,3"}
-N_GPUS=$(echo ${GPUS} | tr ',' '\n' | wc -l)
-BATCH=${BATCH:-512}      # per-GPU batch (total effective = BATCH * N_GPUS)
-EPOCHS=${EPOCHS:-10}
-RUN_NAME="knowcol-img-filtered-b${BATCH}x${N_GPUS}-${EPOCHS}ep"
+export GPUS=${GPUS:-"0,1,2,3"}
+export N_GPUS=$(echo ${GPUS} | tr ',' '\n' | wc -l)
+export BATCH=${BATCH:-512}
+export EPOCHS=${EPOCHS:-10}
+export RUN_NAME="knowcol-img-filtered-b${BATCH}x${N_GPUS}-${EPOCHS}ep"
 
 # filtered JSONL 생성
 echo "[0] Preparing filtered JSONL..."
