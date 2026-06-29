@@ -7,7 +7,8 @@ WORKSPACE=${WORKSPACE:-/workspace}
 # conda 위치 유연하게 처리
 PYTHON=${PYTHON_VQA:-""}
 if [ -z "${PYTHON}" ]; then
-    for p in "${WORKSPACE}/miniconda3/envs/vqa/bin/python" \
+    for p in "/venv/vqa/bin/python" \
+              "${WORKSPACE}/miniconda3/envs/vqa/bin/python" \
               "/opt/conda/envs/vqa/bin/python" \
               "/root/miniconda3/envs/vqa/bin/python"; do
         [ -f "$p" ] && PYTHON="$p" && break

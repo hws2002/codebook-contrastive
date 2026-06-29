@@ -8,7 +8,10 @@ Usage:
         --output_dir ../codebook-contrastive/outputs/entity_embs
 """
 import sys, os
-sys.path.insert(0, '/data/guozhiqiang/hanyoushuo/multimodal/KnowCoL')
+# KnowCoL 경로: 환경변수 KNOWCOL_DIR 또는 스크립트 위치 기반 자동 추론
+_knowcol_dir = os.environ.get('KNOWCOL_DIR') or \
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../KnowCoL')
+sys.path.insert(0, os.path.abspath(_knowcol_dir))
 
 import argparse
 import json
