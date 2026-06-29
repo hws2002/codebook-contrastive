@@ -1,0 +1,11 @@
+/workspace/codebook-contrastive/scripts/extract_entity_embeddings.py: line 9: 
+Phase 0: Extract CLIP embeddings for all entities in KG.
+Saves z_ent_text and z_ent_img separately.
+
+Usage:
+    cd /data/guozhiqiang/hanyoushuo/multimodal/KnowCoL
+    python ../codebook-contrastive/scripts/extract_entity_embeddings.py         --output_dir ../codebook-contrastive/outputs/entity_embs
+: No such file or directory
+/workspace/codebook-contrastive/scripts/extract_entity_embeddings.py: line 10: import: command not found
+/workspace/codebook-contrastive/scripts/extract_entity_embeddings.py: line 11: syntax error near unexpected token `0,'
+/workspace/codebook-contrastive/scripts/extract_entity_embeddings.py: line 11: `sys.path.insert(0, '/workspace/KnowCoL')'

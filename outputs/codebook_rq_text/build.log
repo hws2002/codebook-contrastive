@@ -1,4 +1,23 @@
-Traceback (most recent call last):
-  File "/data/guozhiqiang/hanyoushuo/multimodal/codebook-contrastive/scripts/build_codebook_rq.py", line 25, in <module>
-    from sklearn.cluster import MiniBatchKMeans
-ModuleNotFoundError: No module named 'sklearn'
+/workspace/codebook-contrastive/scripts/build_codebook_rq.py: line 18: 
+RQ (Residual Quantization) codebook — depth=4, each level n_centroids centroids.
+idea2_codebook.md 원래 설계와 일치.
+
+code = (c1, c2, c3, c4)
+prefix-1: (c1,)
+prefix-2: (c1, c2)
+prefix-3: (c1, c2, c3)
+full:      (c1, c2, c3, c4)
+
+Usage:
+    cd /data/guozhiqiang/hanyoushuo/multimodal/codebook-contrastive
+    python scripts/build_codebook_rq.py         --emb_dir outputs/entity_embs         --output_dir outputs/codebook_rq         --depth 4         --n_centroids 256
+: No such file or directory
+/workspace/codebook-contrastive/scripts/build_codebook_rq.py: line 19: import: command not found
+/workspace/codebook-contrastive/scripts/build_codebook_rq.py: line 20: import: command not found
+/workspace/codebook-contrastive/scripts/build_codebook_rq.py: line 21: import: command not found
+/workspace/codebook-contrastive/scripts/build_codebook_rq.py: line 22: import: command not found
+/workspace/codebook-contrastive/scripts/build_codebook_rq.py: line 23: from: command not found
+/workspace/codebook-contrastive/scripts/build_codebook_rq.py: line 24: from: command not found
+/workspace/codebook-contrastive/scripts/build_codebook_rq.py: line 25: from: command not found
+/workspace/codebook-contrastive/scripts/build_codebook_rq.py: line 28: syntax error near unexpected token `('
+/workspace/codebook-contrastive/scripts/build_codebook_rq.py: line 28: `def rq_encode(embs: np.ndarray, centroids_list: list) -> np.ndarray:'

@@ -1,16 +1,23 @@
-Loading entity embeddings...
-Training level 1/4 KMeans (n_centroids=256)...
-Training level 2/4 KMeans (n_centroids=256)...
-Training level 3/4 KMeans (n_centroids=256)...
-Training level 4/4 KMeans (n_centroids=256)...
-Encoding all entities with RQ...
+/workspace/codebook-contrastive/scripts/build_codebook_rq.py: line 18: 
+RQ (Residual Quantization) codebook — depth=4, each level n_centroids centroids.
+idea2_codebook.md 원래 설계와 일치.
 
-=== RQ Codebook Stats (depth=4, n_centroids=256) ===
-prefix-1: 256 buckets | min=7 max=941 mean=125.5 imbalance=7.5x
-prefix-2: 8334 buckets | min=1 max=56 mean=3.9 imbalance=14.5x
-prefix-3: 25970 buckets | min=1 max=22 mean=1.2 imbalance=17.8x
-prefix-4: 30761 buckets | min=1 max=17 mean=1.0 imbalance=16.3x
+code = (c1, c2, c3, c4)
+prefix-1: (c1,)
+prefix-2: (c1, c2)
+prefix-3: (c1, c2, c3)
+full:      (c1, c2, c3, c4)
 
-Saved to /data/guozhiqiang/hanyoushuo/multimodal/codebook-contrastive/outputs/codebook_rq_img/
-  entity_codes_rq.npy     shape: (32122, 4)
-  prefix_buckets_rq.pkl   depth 1~4
+Usage:
+    cd /data/guozhiqiang/hanyoushuo/multimodal/codebook-contrastive
+    python scripts/build_codebook_rq.py         --emb_dir outputs/entity_embs         --output_dir outputs/codebook_rq         --depth 4         --n_centroids 256
+: No such file or directory
+/workspace/codebook-contrastive/scripts/build_codebook_rq.py: line 19: import: command not found
+/workspace/codebook-contrastive/scripts/build_codebook_rq.py: line 20: import: command not found
+/workspace/codebook-contrastive/scripts/build_codebook_rq.py: line 21: import: command not found
+/workspace/codebook-contrastive/scripts/build_codebook_rq.py: line 22: import: command not found
+/workspace/codebook-contrastive/scripts/build_codebook_rq.py: line 23: from: command not found
+/workspace/codebook-contrastive/scripts/build_codebook_rq.py: line 24: from: command not found
+/workspace/codebook-contrastive/scripts/build_codebook_rq.py: line 25: from: command not found
+/workspace/codebook-contrastive/scripts/build_codebook_rq.py: line 28: syntax error near unexpected token `('
+/workspace/codebook-contrastive/scripts/build_codebook_rq.py: line 28: `def rq_encode(embs: np.ndarray, centroids_list: list) -> np.ndarray:'
